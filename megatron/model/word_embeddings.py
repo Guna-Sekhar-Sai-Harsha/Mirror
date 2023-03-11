@@ -1,23 +1,9 @@
-# Copyright (c) 2021, EleutherAI
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import torch
 import math
 from torch.nn.parameter import Parameter
 
 from megatron import mpu
-from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
+from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding, RotaryEmbedding
 from megatron.model.init_functions import get_init_methods
 
 
@@ -35,15 +21,15 @@ class Embedding(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        neox_args,
-        hidden_size,
-        vocab_size,
-        max_sequence_length,
-        embedding_dropout_prob,
-        init_method,
-        num_tokentypes=0,
-        use_pos_emb=True,
+            self,
+            neox_args,
+            hidden_size,
+            vocab_size,
+            max_sequence_length,
+            embedding_dropout_prob,
+            init_method,
+            num_tokentypes=0,
+            use_pos_emb=True,
     ):
         super(Embedding, self).__init__()
 
@@ -91,6 +77,10 @@ class Embedding(torch.nn.Module):
                 self.position_embeddings = SinusoidalPositionalEmbedding(
                     self.hidden_size
                 )
+            elif self.embedding_type == "rotary":
+                self.position_embeddings = RotaryEmbedding(
+                    self.hidden_size
+                )
 
         # Token type embedding.
         # Add this as an optional field that can be added through
@@ -134,7 +124,7 @@ class Embedding(torch.nn.Module):
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
-        if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
+        if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal", "rotary"]:
             if self.opt_pos_emb_offset:
                 if self.layer_past is not None:
                     position_ids = position_ids + self.layer_past + 1
@@ -172,7 +162,7 @@ class EmbeddingPipe(Embedding):
 
     def forward(self, args):
         assert (
-            len(args) == 3
+                len(args) == 3
         ), f"Expected 3 arguments (input_ids, position_ids, attention_mask), but got {len(args)}."
 
         input_ids = args[0]
@@ -184,12 +174,12 @@ class EmbeddingPipe(Embedding):
 
 class SoftEmbedding(torch.nn.Module):
     def __init__(
-        self,
-        neox_args,
-        wte,
-        n_tokens: int = 10,
-        init_range: float = 0.5,
-        init_string: str = "",
+            self,
+            neox_args,
+            wte,
+            n_tokens: int = 10,
+            init_range: float = 0.5,
+            init_string: str = "",
     ):
         super(SoftEmbedding, self).__init__()
         self.n_tokens = n_tokens
@@ -210,8 +200,8 @@ class SoftEmbedding(torch.nn.Module):
                 embeds = embeds[: self.n_tokens, :]  # slice
             else:
                 embeds = embeds.repeat(math.ceil(self.n_tokens / embeds.shape[0]), 1)[
-                    : self.n_tokens, :
-                ]  # pad up to n_tokens
+                         : self.n_tokens, :
+                         ]  # pad up to n_tokens
             return embeds
         return torch.Tensor(n_tokens, neox_args.hidden_size).uniform_(
             -self.random_range, self.random_range
@@ -239,3 +229,4 @@ class SoftEmbedding(torch.nn.Module):
                 embedding = embedding[:, : self.neox_args.seq_length, ...]
             # otherwise, we're in incremental mode, and just want to forward the single embedding (since the soft prompt has already been cached)
             return embedding, layer_past, attention_mask
+        
