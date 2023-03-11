@@ -30,11 +30,6 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 * [Monitoring](#monitoring)
   * [Weights & Biases](#wandb)
   * [TensorBoard](#tensorboard)
-* [Administrative Notes](#administrative-notes)
-  * [Citing GPT-NeoX](#citing-gpt-neox)
-  * [Licensing](#licensing)
-  * [Publications](#publications)
-  * [Acknowledgements](#acknowledgements)
 
 # Quick Start
 
