@@ -218,13 +218,50 @@ class ParallelSelfAttention(nn.Module):
         self.pos_emb = neox_args.pos_emb
 
         # Strided linear layer.
-        self.query_key_value = mpu.ColumnParallelLinear(
+        self.query = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
-            output_size=3 * neox_args.hidden_size,
+            output_size=neox_args.hidden_size,
             gather_output=False,
             init_method=init_method,
         )
+
+        self.key = mpu.ColumnParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.hidden_size,
+            output_size=neox_args.hidden_size,
+            gather_output=False,
+            init_method=init_method,
+        )
+
+        self.value = mpu.ColumnParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.hidden_size,
+            output_size=neox_args.hidden_size,
+            gather_output=False,
+            init_method=init_method,
+        )
+
+        self.proj_k = mpu.RowParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.seq_length,
+            output_size=512,
+            input_is_parallel=False,
+            init_method=init_method,
+            skip_bias_add=True,
+            parallel_output=False,
+        )
+
+        self.proj_v = mpu.RowParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.seq_length,
+            output_size=512,
+            input_is_parallel=False,
+            init_method=init_method,
+            skip_bias_add=True,
+            parallel_output=False,
+        )
+
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -491,21 +528,32 @@ class ParallelSelfAttention(nn.Module):
         # =====================
         # Query, Key, and Value
         # =====================
+        projection_k,_ = self.proj_k(hidden_states.transpose(0,-1))
+        projection_k = projection_k.transpose(0,-1)
+        projection_v,_ = self.proj_v(hidden_states.transpose(0,-1))
+        projection_v = projection_v.transpose(0,-1)
 
-        # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
-        mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-        # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
-        new_tensor_shape = mixed_x_layer.size()[:-1] + (
+
+        # Attention heads [sq, b, h] --> [sq, b, (np * hn)]
+        query_layer, _ = self.query(hidden_states)
+        key_layer, _ = self.key(projection_k)
+        value_layer, _ = self.value(projection_v)
+
+        # [sq, b, (np * 3 * hn)] --> [sq, b, np, hn]
+        new_q_tensor_shape = query_layer.size()[:-1] + (
             self.num_attention_heads_per_partition,
-            3 * self.hidden_size_per_attention_head,
+            self.hidden_size_per_attention_head,
         )
-        mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+        query_layer = query_layer.view(*new_q_tensor_shape)
 
-        # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-        (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
-            mixed_x_layer, 3
+        new_kv_tensor_shape = key_layer.size()[:-1] + (
+            self.num_attention_heads_per_partition,
+            self.hidden_size_per_attention_head,
         )
+        key_layer = key_layer.view(*new_kv_tensor_shape)
+        value_layer = value_layer.view(*new_kv_tensor_shape)
+
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
