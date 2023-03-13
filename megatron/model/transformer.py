@@ -116,14 +116,14 @@ class ParallelMLP(nn.Module):
         self.dense_c1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
-            output_size=neox_args.hidden_size//64,
+            output_size=neox_args.hidden_size//256,
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
         )
         self.dense_c2 = mpu.RowParallelLinear(
             neox_args=neox_args,
-            input_size=neox_args.hidden_size//64,
+            input_size=neox_args.hidden_size//256,
             output_size=ff_dim,
             input_is_parallel=True,
             init_method=output_layer_init_method,
@@ -136,26 +136,15 @@ class ParallelMLP(nn.Module):
         c1 = self.dense_c1(hidden_states)
         c2 = self.dense_c2(c1)
         x= c2.shape
-        c2=c2.reshape(x[0]*x[1],x[2]//64,64)
+        c2=c2.reshape(x[0]*x[1],x[2]//256,256)
         controller = F.gumbel_softmax(c2, tau=0.1, hard=True,dim=- 1)
         controller=controller.reshape(x[0],x[1],x[2])
 
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
         
-
-        if (
-            self.activation_type == "gelu" and self.bias_gelu_fusion
-        ) or self.activation_type == "geglu":
-            intermediate_parallel = self.activation_func(
-                intermediate_parallel, bias_parallel
-            )
-        else:
-            intermediate_parallel = self.activation_func(
-                intermediate_parallel + bias_parallel
-            )
         # [s, b, h]
-        intermediate_parallel = intermediate_parallel * controller
+        intermediate_parallel = (intermediate_parallel + bias_parallel) * controller
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
 
