@@ -2,15 +2,15 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe-parallel-size": 4,
+   "model-parallel-size": 2,
 
    # model settings
    "num-layers": 32,
-   "hidden-size": 2560,
+   "hidden-size": 12288,
    "num-attention-heads": 32,
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
+   "seq-length": 4096,
+   "max-position-embeddings": 4096,
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
@@ -18,7 +18,7 @@
    "output_layer_parallelism": "column",
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
+   "scaled-upper-triang-masked-softmax-fusion": true,
    "bias-gelu-fusion": false,
 
    # init methods
@@ -74,8 +74,8 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 150000,
+   "lr-decay-iters": 150000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -88,4 +88,9 @@
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
+   
+   ### NEW DATA: ####
+  "tokenizer_type": "HFTokenizer",
+  "tensorboard-dir": "./tensorboard",
+  "log-dir": "./logs",
 }
