@@ -7,7 +7,7 @@
 
    # model settings
    "num-layers": 32,
-   "hidden-size": 12288,
+   "hidden-size": 4096,
    "num-attention-heads": 32,
    "seq-length": 4096,
    "max-position-embeddings": 4096,
@@ -74,8 +74,8 @@
    },
 
    # misc. training settings
-   "train-iters": 150000,
-   "lr-decay-iters": 150000,
+   "train-iters": 320000,
+   "lr-decay-iters": 320000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
