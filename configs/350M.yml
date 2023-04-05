@@ -16,6 +16,9 @@
    "no-weight-tying": true,
    "gpt_j_residual": false,
    "output_layer_parallelism": "column",
+   
+   "attention_config”:[[["flash"], "24"]],
+
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
@@ -49,6 +52,8 @@
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
+   "gradient_accumulation_steps": 1,
+   "split": "949,50,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
