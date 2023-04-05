@@ -13,3 +13,14 @@ tiktoken
 tokenizers
 transformers
 bitsandbytes
+cupy-cuda111
+triton
+tensorboard
+wandb
+autopep8
+clang-format
+pre-commit
+pytest
+pytest-cov
+pytest-forked
+pytest-xdist
